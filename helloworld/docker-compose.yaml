@@ -1,0 +1,60 @@
+version: '3.8'
+networks:
+  defaut:
+services:
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector:0.41.0
+    command: [ "--config=/etc/otel-collector-config.yaml" ]
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otel-collector-config.yaml
+      - ./otel-collector/output:/etc/otel/output:rw # Store the logs
+    ports:
+      - 9464:9464   # Prometheus metrics exposed by the collector
+      - 4317:4317   # OTLP gRPC receiver
+    networks:
+      - defaut
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+    command:
+      - '--config.file=/etc/prometheus/config.yaml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--enable-feature=exemplar-storage'
+      - --web.enable-remote-write-receiver
+    ports:
+      - 9090:9090
+    links:
+      - otel-collector
+    networks:
+      - defaut
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - ./grafana/datasources/:/etc/grafana/provisioning/datasources/
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    ports:
+      - "3000:3000"
+    networks:
+      - defaut
+  tempo:
+    image: grafana/tempo:latest
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./tempo/config.yaml:/etc/tempo.yaml
+      - ./tempo-data:/tmp/tempo
+    ports:
+      - "14268:14268"  # jaeger ingest
+      - "3200:3200"   # tempo
+      - "9095:9095" # tempo grpc
+      - "4319:4317"  # otlp grpc
+      - "4318:4318"  # otlp http
+      - "9411:9411"   # zipkin
+    networks:
+      - defaut
