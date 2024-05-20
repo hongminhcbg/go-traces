@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/signal"
 
@@ -13,6 +12,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -105,7 +106,13 @@ func setupTracing(ctx context.Context, serviceName string) (*trace.TracerProvide
 func main() {
 	cancel := make(chan os.Signal, 1)
 	signal.Notify(cancel, os.Interrupt)
-	l := log.New(os.Stdout, "", 0)
+	// l := log.NewLoggerConfig(log.WithInstrumentationVersion("v0.1.0"))
+	l := global.Logger("main")
+	r := log.Record{}
+
+	r.SetBody(log.StringValue("Hello, World!"))
+	l.Emit(context.Background(), r)
+	fmt.Println("Hello, World!")
 
 	tp, err := setupTracing(context.Background(), "X")
 	if err != nil {
@@ -114,7 +121,7 @@ func main() {
 
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
-			l.Fatal(err)
+			panic(err)
 		}
 	}()
 	otel.SetTracerProvider(tp)
